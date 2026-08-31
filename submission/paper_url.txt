@@ -1,1 +1,1 @@
-PASTE-YOUR-DEPLOYED-PAPER-URL-HERE
+ paper_url - https://github.com/chiemahp/Flyrank-internship-ml/blob/main/docs/index.html
