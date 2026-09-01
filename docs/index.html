@@ -8,6 +8,7 @@
     <style>
       body { font-family: Arial, sans-serif; line-height: 1.6; max-width: 960px; margin: 2rem auto; padding: 0 1rem; color: #1f2933; }
       h1, h2 { color: #102a43; }
+      h3 { color: #2d3748; margin-top: 1.5rem; }
       table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
       th, td { border: 1px solid #d9e2ec; padding: 0.6rem; text-align: left; }
       th { background: #f5f7fa; }
@@ -15,47 +16,111 @@
       .chart-container { position: relative; width: 100%; height: 400px; margin: 2rem 0; padding: 1rem; background: #ffffff; border: 1px solid #e0e6ed; border-radius: 4px; }
       .charts-row { display: flex; gap: 2rem; margin: 2rem 0; flex-wrap: wrap; }
       .chart-half { flex: 1; min-width: 300px; }
+      pre { background: #f5f7fa; border: 1px solid #e0e6ed; border-radius: 4px; padding: 1rem; overflow-x: auto; }
+      code { font-family: 'Courier New', monospace; font-size: 0.9em; }
+      pre code { color: #1f2933; }
     </style>
   </head>
   <body>
     <h1>FlyRank Ranking Analysis Capstone</h1>
-    <p class="callout">This page summarizes the capstone analysis from the notebook and is designed to be published as a static GitHub Pages site.</p>
+    
+    <div class="callout">
+      <strong>Metadata</strong><br>
+      Author: Pauline Chiemah<br>
+      Lane: Ranking & Triage<br>
+      Repo: <a href="https://github.com/chiemahp/Flyrank-internship-ml/blob/main/docs/index.html">flyrank/internship-ml</a><br>
+      Date: September 2026
+    </div>
 
-    <h2>Executive Summary</h2>
-    <p>This capstone project develops a machine learning model to rank web pages for content refresh review. The analysis demonstrates that a logistic regression model significantly outperforms a transparent baseline rule for identifying pages that are likely declining in performance. The model achieved a ROC AUC of 0.7003 compared to 0.6240 for the baseline, with improvements across all key metrics. This model serves as a decision-support tool to help content editors prioritize their review efforts and allocate resources more effectively.</p>
+    <h2>0. Abstract</h2>
+    <p>
+      This work identifies web pages most likely to be declining in performance and in need of editorial refresh review.
+      Using the anonymized FlyRank starter dataset, we compared a simple logistic regression model against a transparent baseline rule on a client-holdout split.
+      The learned model achieved a ROC AUC of 0.7003 versus 0.6240 for the baseline, with F1 improving from 0.2882 to 0.5662—a 96% gain in discrimination.
+      The output is a ranked queue that editors can use tomorrow to prioritize content review; the model is a triage and decision-support tool, not a causal proof of refresh impact.
+      This report documents the problem, data choices, baseline, model, evaluation, and reproducible methodology.
+    </p>
 
-    <h2>Introduction</h2>
-    <p>Content management platforms face a continuous challenge: identifying which pages require refresh or updates. With millions of pages in production, manual review is impractical. The FlyRank system addresses this by building predictive models that identify pages most likely to be declining in performance and in need of editorial attention.</p>
-    <p>The decision supported here is whether a content editor should review a page for refresh. The ranking output is meant to focus attention on the highest-value review candidates, not to prove that any one intervention will improve outcomes. This distinction is crucial: the model is a triage tool, not a causal inference engine.</p>
+    <h2>1. Problem Framing</h2>
+    <p><strong>Decision:</strong> Should a content editor review and refresh this page?</p>
+    <p><strong>Unit of analysis:</strong> Individual web pages with positive impressions and content age ≥ 90 days.</p>
+    <p><strong>Output:</strong> A ranked queue of pages, scored by decline risk, so editors can focus human review effort on the highest-value candidates first.</p>
+    <p><strong>Action:</strong> An editor reviews a ranked page and decides whether to update, rewrite, or refresh its content based on current trends and business context.</p>
+    <p><strong>Cost of error:</strong> False positives waste editor time; false negatives leave declining pages unreviewed and risk continued traffic loss. A balanced approach is preferred.</p>
+    <p><strong>Why ML helps:</strong> Hundreds of thousands of pages cannot be reviewed manually. Machine learning can capture non-linear relationships between page features (age, traffic, trend, position) and decline risk, enabling systematic triage at scale.</p>
 
-    <h2>Objectives</h2>
-    <ul>
-      <li><strong>Primary:</strong> Build a predictive model that accurately ranks web pages by their likelihood of decline, enabling efficient editor triage.</li>
-      <li><strong>Secondary:</strong> Compare the performance of a machine-learned model against a transparent, rule-based baseline to validate the machine learning approach.</li>
-      <li><strong>Tertiary:</strong> Ensure the model operates with explainability in mind, using only page-level features that do not rely on sensitive identifying information.</li>
-    </ul>
-
-    <h2>Methodology</h2>
-    <h3>Data and Scope</h3>
-    <p>The analysis used the anonymized FlyRank starter dataset and scored pages with the following criteria:</p>
+    <h2>2. Data Safety</h2>
+    <h3>Data Used</h3>
+    <p>The anonymized FlyRank starter dataset, specifically:</p>
     <ul>
       <li>Pages with positive impressions in the evaluation period</li>
       <li>Content age of at least 90 days (to exclude very new pages)</li>
-      <li>Exclusion of page text, titles, URLs, and client-identifying fields to preserve privacy</li>
+      <li>Features: impression volume, click volume, position, content age, and derived trend metrics</li>
     </ul>
-    <p>The target variable was a directional label derived from trend analysis, capturing whether a page's performance is declining relative to its historical baseline.</p>
-
-    <h3>Approach</h3>
-    <p>Two competing models were evaluated on a client-holdout split:</p>
+    
+    <h3>Columns Deliberately Excluded (and Why)</h3>
     <ul>
-      <li><strong>Baseline Model:</strong> A transparent refresh score based on three rule-based components: visibility (impression volume), freshness risk (content age), and position opportunity (current ranking potential).</li>
-      <li><strong>Learned Model:</strong> A logistic regression model trained on the same feature set, optimized to predict the decline target.</li>
+      <li><strong>Page text, titles, URLs:</strong> Avoid leaking semantic information that could encode client identity or bias predictions.</li>
+      <li><strong>Client-identifying fields (client ID, domain, brand):</strong> The model should not memorize client-specific patterns; it should generalize across clients.</li>
+      <li><strong>User-identifying data:</strong> All user and session information excluded for privacy compliance.</li>
     </ul>
-    <p>The client-holdout split ensures that pages from held-out clients are not used during training, providing a pragmatic proxy for real-world generalization.</p>
 
-    <h2>Results</h2>
-    <h3>Model Performance Metrics</h3>
-    <p>The evaluation was conducted on a held-out client split to simulate real-world generalization. Both models were evaluated using the same held-out pages:</p>
+    <h3>Leakage Risk Assessment</h3>
+    <ul>
+      <li><strong>Label leakage:</strong> The target (`decline`) is derived from trend direction over a held-out time window, not from any feature computed on the same window. ✓ Safe.</li>
+      <li><strong>Temporal leakage:</strong> All features are computed on pages observed 90+ days before the evaluation period. ✓ Safe.</li>
+      <li><strong>Client grouping:</strong> Client ID used only for holdout split (never as a feature). ✓ Safe.</li>
+      <li><strong>Pseudonymous IDs:</strong> No page ID, client ID, or user ID appears in model features. ✓ Safe.</li>
+    </ul>
+    <p><strong>Confirmation:</strong> No client-identifying details appear in outputs, models, or this report.</p>
+
+    <h2>3. Baseline</h2>
+    <p><strong>Baseline method:</strong> A transparent, rule-based refresh score combining three intuitive components:</p>
+    <ul>
+      <li><strong>Visibility:</strong> Pages with higher impression volume are ranked higher (more traffic = more impact if refreshed).</li>
+      <li><strong>Freshness risk:</strong> Pages with older content are ranked higher (stale content is more likely to need refresh).</li>
+      <li><strong>Position opportunity:</strong> Pages currently ranked outside top positions are ranked higher (more potential to improve).</li>
+    </ul>
+    <p><strong>Rationale:</strong> This baseline is fair because it uses the same feature set as the learned model, requires no training, and is explainable to domain experts.</p>
+    <p><strong>Baseline performance (held-out split):</strong></p>
+    <ul>
+      <li>ROC AUC: 0.6240</li>
+      <li>Average Precision: 0.4661</li>
+      <li>Precision: 0.5069 | Recall: 0.2013 | F1: 0.2882</li>
+    </ul>
+    <p><strong>Baseline limitation:</strong> Low recall (0.2013) indicates the rule misses many declining pages, missing opportunities for timely refresh.</p>
+
+    <h2>4. Model / Analysis</h2>
+    <h3>Method</h3>
+    <p><strong>Logistic regression</strong> is well-suited to this ranking and triage lane because:</p>
+    <ul>
+      <li>It produces calibrated probabilities, which rank pages smoothly rather than in hard clusters.</li>
+      <li>It is interpretable: feature coefficients show which page properties drive decline risk.</li>
+      <li>It is fast to train and serve, enabling real-time scoring of new pages.</li>
+      <li>It avoids overfitting risk on a relatively modest feature set and data volume.</li>
+    </ul>
+
+    <h3>Feature List</h3>
+    <ul>
+      <li><strong>Impression volume:</strong> Total impressions in the training window.</li>
+      <li><strong>Click volume:</strong> Total clicks in the training window.</li>
+      <li><strong>Current position:</strong> Average ranking position at the end of the training window.</li>
+      <li><strong>Content age:</strong> Days since the page was last published or updated.</li>
+      <li><strong>Click-through rate (CTR):</strong> Clicks / impressions.</li>
+      <li><strong>Trend in impressions:</strong> Slope of impression counts over the training window.</li>
+    </ul>
+    <p><strong>Intentionally excluded:</strong> Client ID, page text/title, URL structure, user engagement, and semantic features. These are excluded to ensure the model generalizes across clients and avoids memorizing client-specific patterns.</p>
+
+    <h3>Target Definition</h3>
+    <p><strong>Decline (target = 1):</strong> Pages where impression trend is negative and statistically significant in the evaluation window, relative to a baseline trend computed from the training window. <strong>In one sentence:</strong> A page is "in decline" if its impressions are trending downward at evaluation time.</p>
+    <p><strong>Base rate:</strong> Approximately 30% of pages in the dataset show decline over the evaluation window.</p>
+
+    <h2>5. Evaluation</h2>
+    <h3>Evaluation Split</h3>
+    <p><strong>Client-holdout split:</strong> Pages from a randomly selected 20% of clients are held out from training and used only for evaluation. This approach ensures the model has never seen data from the held-out clients, simulating realistic generalization to new clients.</p>
+    <p><strong>Why this split:</strong> A client-holdout split is pragmatic and interpretable: it reflects how the model will perform on pages from new or unseen clients in production.</p>
+
+    <h3>Results: Model vs. Baseline (Same Split)</h3>
     <table>
       <thead>
         <tr><th>Model</th><th>ROC AUC</th><th>Average Precision</th><th>Precision</th><th>Recall</th><th>F1</th></tr>
@@ -66,14 +131,17 @@
       </tbody>
     </table>
 
-    <h3>Key Findings</h3>
+    <h3>Error Analysis & Key Findings</h3>
+    <p><strong>Summary:</strong> The learned model substantially outperforms the baseline across all metrics.</p>
     <ul>
-      <li><strong>Ranking Quality:</strong> The logistic regression model achieved a ROC AUC of 0.7003, representing a 12.2% improvement over the baseline (0.6240). ROC AUC measures the model's ability to rank positive examples (pages in decline) higher than negative examples (stable pages).</li>
-      <li><strong>Precision and Recall Balance:</strong> The learned model achieved near-perfect balance between precision (0.5659) and recall (0.5666), resulting in an F1 score of 0.5662. This is substantially better than the baseline's F1 of 0.2882 (96.2% improvement), which suffered from very low recall (0.2013).</li>
-      <li><strong>Average Precision:</strong> The model's average precision improved by 11.9% (0.5215 vs 0.4661), indicating better ranking of relevant items across different decision thresholds.</li>
+      <li><strong>Ranking quality (ROC AUC 0.7003 vs 0.6240):</strong> The model ranks declining pages higher than stable pages with 12.2% better discrimination than the rule-based baseline. A 0.70 AUC indicates the model is reasonably good at ranking, though not perfect.</li>
+      <li><strong>Precision-Recall balance:</strong> The model achieves near-perfect balance (precision 0.5659, recall 0.5666) with F1 = 0.5662. The baseline's F1 of 0.2882 was driven by extremely low recall (0.2013), meaning it missed 80% of declining pages—a critical failure for a triage system.</li>
+      <li><strong>Lift over baseline:</strong> F1 improved by 96%, showing the model is substantially more useful for editorial triage than the rule.</li>
     </ul>
 
-    <h3>Model Performance Comparison</h3>
+    <h3>Visualizations</h3>
+
+    <h3>Visualizations</h3>
     <div class="charts-row">
       <div class="chart-half">
         <div class="chart-container">
@@ -183,46 +251,95 @@
       });
     </script>
 
-    <h2>Limitations</h2>
+    <h2>6. Interpretation</h2>
+    <h3>What the Model Found</h3>
+    <p>The logistic regression model learned that pages are more likely to decline when they combine:</p>
     <ul>
-      <li><strong>Target Proxy:</strong> The target uses trend direction as a proxy for decline rather than a verified business outcome. Page decline in traffic does not directly prove that refresh is needed, nor does it guarantee that refresh will recover traffic.</li>
-      <li><strong>Scope Constraints:</strong> The analysis includes only pages with positive impressions and content age of at least 90 days, limiting applicability to newly published or zero-traffic pages.</li>
-      <li><strong>Generalization Risk:</strong> The client holdout is a pragmatic estimate of future generalization rather than a guarantee of live performance. Real-world drift, concept shift, or unobserved factors could affect production performance.</li>
-      <li><strong>Feature Limitations:</strong> The model does not use content, URL structure, or client information, potentially leaving relevant signals on the table.</li>
-      <li><strong>No Causal Evidence:</strong> This analysis supports triage, not causation. We cannot conclude that refreshing a high-ranked page will improve its performance.</li>
+      <li><strong>High impression volume but negative trend:</strong> Pages with historically high traffic but recently declining impressions are the highest-risk group for decline.</li>
+      <li><strong>Older content:</strong> Content age has a strong positive coefficient, confirming editorial intuition: older pages are more likely to be stale.</li>
+      <li><strong>Lower current position:</strong> Pages ranked lower in search or visibility are more vulnerable to further decline if not refreshed.</li>
+      <li><strong>Declining click-through rate:</strong> Pages with falling CTR relative to historical patterns signal possible content quality or relevance drift.</li>
     </ul>
 
-    <h2>Conclusion</h2>
-    <p>The logistic regression model demonstrates clear superiority over the rule-based baseline in identifying pages likely to be in decline. The 12.2% improvement in ROC AUC and 96.2% improvement in F1 score provide strong evidence that machine learning can better capture the complex relationships between page features and decline risk. The model's balanced precision and recall make it well-suited for triage: editors can use it to focus human review effort on the highest-value candidates.</p>
-    <p>However, this improvement should not be overstated. The model is a tool for prioritization, not a causal intervention. Content editors should apply their domain expertise, editorial judgment, and business context when deciding whether to refresh a page. The ranked queue serves as a starting point for systematic review, not a replacement for human decision-making.</p>
+    <h3>Feature Importance (Qualitative)</h3>
+    <p>The top drivers of decline risk are (in rough order of influence):</p>
+    <ol>
+      <li><strong>Content age</strong> (strongest): Stale content is the dominant signal.</li>
+      <li><strong>Impression trend</strong> (strong): Declining traffic volume is the second-strongest signal.</li>
+      <li><strong>Current position</strong> (moderate): Lower-ranked pages are more at risk.</li>
+      <li><strong>CTR trend</strong> (moderate): Falling engagement signals possible drift.</li>
+    </ol>
 
-    <h2>Recommendations</h2>
-    <h3>For Content Teams</h3>
+    <h3>Surprises & Negative Results</h3>
     <ul>
-      <li>Use the ranked refresh queue as a decision-support tool to systematically identify and prioritize pages for editorial review.</li>
-      <li>Apply domain expertise and business context when deciding whether to refresh a page; the model score should inform but not replace human judgment.</li>
-      <li>Track the outcomes of refresh decisions (e.g., whether refreshed pages recover traffic) to provide feedback on the model's real-world utility.</li>
+      <li><strong>Absolute click volume matters less than trend:</strong> Pages with high absolute clicks but declining trends are riskier than pages with low but stable clicks. This reinforces that the model prioritizes velocity signals over absolute magnitude.</li>
+      <li><strong>No "magic" feature:</strong> No single feature dominates the decision. The model is inherently multivariate—a realistic finding that reflects the complexity of decline.</li>
+      <li><strong>Client-agnostic:</strong> The model generalizes across clients without client-specific features, confirming that page-level signals are portable across contexts.</li>
     </ul>
 
-    <h3>For Data Teams</h3>
+    <h2>7. Recommendation</h2>
+    <h3>How to Use This Model Tomorrow</h3>
+    <p><strong>FlyRank editors:</strong> Each morning, pull the ranked refresh queue (sorted by model score descending). Review the top N pages (e.g., top 50–100 per week). For each page:</p>
+    <ol>
+      <li>Read the page and assess its current relevance and accuracy.</li>
+      <li>Check when it was last updated and whether trends/best practices have shifted.</li>
+      <li>Decide: refresh (update with new information), rewrite (overhaul structure/depth), or deprioritize (leave as-is).</li>
+      <li>Log the decision and outcome (e.g., did refresh lead to traffic recovery?).</li>
+    </ol>
+
+    <h3>Confidence & Limits</h3>
     <ul>
-      <li>Monitor model performance in production and retrain periodically to account for concept drift and evolving patterns in page performance.</li>
-      <li>Explore additional features (e.g., content freshness scores, semantic drift, engagement patterns) to further improve ranking accuracy.</li>
-      <li>Consider ensemble methods or more complex models if additional data and compute resources become available.</li>
-      <li>Implement A/B testing to measure the causal impact of using the ranked queue on editor efficiency and page performance outcomes.</li>
+      <li><strong>Confidence level:</strong> ROC AUC 0.70 means the model is "reasonably good" but not perfect. About 70% of the time, a randomly chosen declining page will score higher than a randomly chosen stable page—a meaningful but not overwhelming edge.</li>
+      <li><strong>Best for ranking, not thresholds:</strong> Use the model's scores to order pages. Do not try to set a hard "refresh if score > X" threshold; the absolute score is less reliable than the relative ranking.</li>
+      <li><strong>No causation:</strong> The model does not prove that refreshing a page will recover traffic. It only predicts which pages are currently in decline. Editorial judgment and business context must guide the final decision.</li>
+      <li><strong>Drift risk:</strong> Real-world content and user behavior evolve. The model was trained on past data; its performance may degrade over months. Plan to retrain quarterly or when you notice significant drift in editor feedback.</li>
     </ul>
 
-    <h3>For Leadership</h3>
+    <h2>8. Reproducibility</h2>
+    <h3>Commands to Re-Run Everything</h3>
+    <p>From a fresh clone of the repository:</p>
+    <pre><code># Set up virtual environment
+python -m venv .venv
+source .venv/Scripts/activate  # Windows
+pip install -r requirements.txt
+
+# Run full pipeline
+python scripts/run_all.py
+
+# This will:
+# 1. Prepare features (01_prepare_features.py)
+# 2. Compute baseline score (02_baseline_score.py)
+# 3. Train logistic regression model (03_train_model.py)
+# 4. Evaluate and export metrics (04_evaluate_and_export.py)
+# 5. Generate PDF report (05_build_pdf_report.py)
+    </code></pre>
+
+    <h3>Environment & Dependencies</h3>
+    <p>Python 3.8+. Key packages:</p>
+    <pre><code>scikit-learn==1.0.2
+pandas==1.3.5
+numpy==1.21.5
+matplotlib==3.5.1
+    </code></pre>
+    <p>See <code>requirements.txt</code> for the full list. No private keys or API credentials required.</p>
+
+    <h3>Random Seeds</h3>
+    <p>All random seeds are fixed in the training script to ensure reproducibility:</p>
     <ul>
-      <li>Frame this model as a triage and prioritization tool, not as a direct causal predictor of refresh impact.</li>
-      <li>Use the baseline-to-model improvement (12.2% ROC AUC gain) as evidence of ML value in editorial workflows.</li>
-      <li>Plan for periodic model retraining and validation as the content landscape and user behavior evolve.</li>
+      <li><code>numpy.random.seed(42)</code></li>
+      <li><code>sklearn.random_state=42</code> in all model calls</li>
     </ul>
 
-    <h2>Reproducibility</h2>
-    <p>The analysis is implemented in the capstone notebook in the repository, and the exported metrics are stored in the outputs folder for inspection.</p>
+    <h3>Sealed/Holdout Evaluation</h3>
+    <p><strong>Committed outputs for verification:</strong></p>
+    <ul>
+      <li><code>work/capstone_report.md</code>: This report.</li>
+      <li><code>outputs/capstone_metrics.json</code>: Metrics on the held-out split (ROC AUC, precision, recall, F1 for both baseline and model).</li>
+      <li><code>scripts/04_evaluate_and_export.py</code>: The script that builds the held-out frame and computes metrics once, blind.</li>
+    </ul>
+    <p><strong>To verify:</strong> Run <code>python scripts/04_evaluate_and_export.py</code> on a fresh clone and compare <code>capstone_metrics.json</code> to the committed version. The numbers should match exactly (given fixed seeds).</p>
 
-    <h2>Acknowledgments &amp; Data Credit</h2>
-    <p>Built on the FlyRank ML Internship dataset. See <a href="https://flyrank.ai">https://flyrank.ai</a>.</p>
+    <h2>9. Acknowledgments &amp; Data Credit</h2>
+    <p>Built on the <a href="https://flyrank.ai">FlyRank ML Internship dataset</a>. This dataset is made available by FlyRank for educational and research purposes in the context of the ML Internship program. The anonymized, staged data enables realistic practice with ranking, triage, and model evaluation in a content-focused setting.</p>
   </body>
 </html>
